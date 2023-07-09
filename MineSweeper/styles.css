@@ -1,0 +1,52 @@
+window {
+  background-color: lightblue;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+}
+
+.btnStyle {
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+
+  min-width: 50px;
+  min-height: 50px;
+  
+  padding: 0;
+  border-radius: 0;
+  border: 2px solid black;
+  margin: 0;
+}
+.btnStyle1 {background: lightgreen;}
+.btnStyle2 {background: green;}
+.btnVisible1 {background: lightgray;}
+.btnVisible2 {background: gray;}
+.btnStyleFlag1 {background-color: lightgreen; background-image: url("images/flag.png");}
+.btnStyleFlag2 {background-color: green; background-image: url("images/flag.png");}
+.btnStyleMine1 {background-color: lightgray; background-image: url("images/mine.png");}
+.btnStyleMine2 {background-color: gray; background-image: url("images/mine.png");}
+
+.btnStyleOne1 {background-color: lightgray; background-image: url("images/one.png");}
+.btnStyleOne2 {background-color: gray; background-image: url("images/one.png");}
+
+.btnStyleTwo1 {background-color: lightgray; background-image: url("images/two.png");}
+.btnStyleTwo2 {background-color: gray; background-image: url("images/two.png");}
+
+.btnStyleThree1 {background-color: lightgray; background-image: url("images/three.png");}
+.btnStyleThree2 {background-color: gray; background-image: url("images/three.png");}
+
+.btnStyleFour1 {background-color: lightgray; background-image: url("images/four.png");}
+.btnStyleFour2 {background-color: gray; background-image: url("images/four.png");}
+
+.btnStyleFive1 {background-color: lightgray; background-image: url("images/five.png");}
+.btnStyleFive2 {background-color: gray; background-image: url("images/five.png");}
+
+.btnStyleSix1 {background-color: lightgray; background-image: url("images/six.png");}
+.btnStyleSix2 {background-color: gray; background-image: url("images/six.png");}
+
+.btnStyleSeven1 {background-color: lightgray; background-image: url("images/seven.png");}
+.btnStyleSeven2 {background-color: gray; background-image: url("images/seven.png");}
+
+.btnStyleEight1 {background-color: lightgray; background-image: url("images/eight.png");}
+.btnStyleEight2 {background-color: gray; background-image: url("images/eight.png");}

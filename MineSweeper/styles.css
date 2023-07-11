@@ -4,6 +4,8 @@ window {
   background-position: center;
   background-size: cover;
 }
+.navBar {}
+.navFlagsLeft {font-size: 40px; font-family: sans-serif; color: black;}
 
 .btnStyle {
   background-repeat: no-repeat;

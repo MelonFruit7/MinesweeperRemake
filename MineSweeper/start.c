@@ -1,10 +1,10 @@
 #include <gtk/gtk.h>
 #include <gdk/gdk.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <stdbool.h>
-
 
 //Struct that represents each slot on the minesweeper board
 typedef struct slot {
@@ -14,6 +14,13 @@ typedef struct slot {
 } slot;
 #define boardSizeRoot 10
 slot board[boardSizeRoot][boardSizeRoot];
+
+//Amount of flags we can use
+int flags = boardSizeRoot;
+//Label for amount of flags left
+GtkWidget *flagsLeft;
+//Used to store strings
+char *buffer;
 
 //Used to set CSS to a cetrain item
 void defineCSS(GtkWidget *item, GtkCssProvider *cssProvider, char *className);
@@ -36,14 +43,30 @@ static void activate(GtkApplication *app, gpointer user_data) {
   defineCSS(window, cssProvider, "windowStyle"); 
 
   // Create a main vertical box container
-  GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+  GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
   gtk_container_add(GTK_CONTAINER(window), vbox);
+  gtk_widget_set_valign(vbox, GTK_ALIGN_CENTER);
+  gtk_widget_set_halign(vbox, GTK_ALIGN_CENTER);
+
+  //Extra Info (Nav bar for the game)
+  GtkWidget *navGrid = gtk_grid_new();
+  gtk_box_pack_start(GTK_BOX(vbox), navGrid, FALSE, FALSE, 0); 
+  
+  //Nav Elements
+
+  //The buffer is sized by the length of the number added by 3 for the flag, space, and null terminator (DO NOT FREE will be used later)
+  buffer = calloc(((int)log10((double)flags)+1)+3, sizeof(char));
+  sprintf(buffer, "🚩 %d", flags);
+  flagsLeft = gtk_label_new(buffer);
+  gtk_grid_attach(GTK_GRID(navGrid), flagsLeft, 1, 0, 1, 1);
+
+  //Define CSS for Nav bar elements
+  defineCSS(navGrid, cssProvider, "navBar");
+  defineCSS(flagsLeft, cssProvider, "navFlagsLeft");
 
   //Grid
   GtkWidget *grid = gtk_grid_new();
-  gtk_box_pack_start(GTK_BOX(vbox), grid, TRUE, TRUE, 0); 
-  gtk_widget_set_halign(grid, GTK_ALIGN_CENTER);
-  gtk_widget_set_valign(grid, GTK_ALIGN_CENTER);
+  gtk_box_pack_end(GTK_BOX(vbox), grid, TRUE, TRUE, 0); 
 
   //Create Buttons
   int counter = 0, prev = 1;
@@ -59,11 +82,11 @@ static void activate(GtkApplication *app, gpointer user_data) {
       //Attach button to grid (j represents left, i represents top)
       gtk_grid_attach(GTK_GRID(grid), board[i][j].btn, j, i, 1, 1);
       
-      //Listen to click for button
+      //Passed into the click event so they know what button it is (DO NOT FREE)
       int *index = calloc(2, sizeof(int));
       index[0] = i;
       index[1] = j;
-
+      //Listen to a right click or left click on a slot
       g_signal_connect(board[i][j].btn, "button-press-event", G_CALLBACK(buttonClicked), index);
 
       //Define button css
@@ -119,6 +142,7 @@ void buttonClicked(GtkWidget *widget, GdkEventButton *event ,gpointer data) {
   //Data should not be freed because same button can be clicked multiple times
   int *index = (int *)data;
   
+  if (gameStart && event->button == GDK_BUTTON_SECONDARY) return;
   if (gameStart) {
     setBoard(index[0], index[1]);
     gameStart = !gameStart;
@@ -172,16 +196,23 @@ void buttonClicked(GtkWidget *widget, GdkEventButton *event ,gpointer data) {
     }
     board[index[0]][index[1]].visibility = 1;
   } else if (visible == 0 && event->button == GDK_BUTTON_SECONDARY) {
-    changeStyleContext(context, "btnStyle1", "btnStyleFlag1");
-    changeStyleContext(context, "btnStyle2", "btnStyleFlag2");
-    board[index[0]][index[1]].visibility = 2;
+    if (flags > 0) {
+      changeStyleContext(context, "btnStyle1", "btnStyleFlag1");
+      changeStyleContext(context, "btnStyle2", "btnStyleFlag2");
+      board[index[0]][index[1]].visibility = 2;
+      sprintf(buffer, "🚩 %d", --flags);
+      gtk_label_set_text(GTK_LABEL(flagsLeft), buffer);
+    }
   } else if (visible == 2 && event->button == GDK_BUTTON_SECONDARY) {
     changeStyleContext(context, "btnStyleFlag1", "btnStyle1");
     changeStyleContext(context, "btnStyleFlag2", "btnStyle2");
     board[index[0]][index[1]].visibility = 0;
+    sprintf(buffer, "🚩 %d", ++flags);
+    gtk_label_set_text(GTK_LABEL(flagsLeft), buffer); 
   } 
 } 
-//Shortcut for changing class
+
+//Shortcut for replacing a class with another
 void changeStyleContext(GtkStyleContext *context, char *remove, char *add) {
   if (gtk_style_context_has_class(context, remove)) {
     gtk_style_context_remove_class(context, remove);
@@ -201,15 +232,17 @@ void setBoard(int i, int j) {
       board[rows][columns].typeOf = 0;
     }
   }
-  // initilizing the randomness, bombCount, and continue loop
+  // initilizing the randomness, bombCount
   int randomRow;
   int randomColumn;
   int bombCount = 0;
-  // while there's less than boardSizeRoot bombs, a random tile (using a random row or column in the matrix) will be set to -1 if it's an empty slot
-  while (bombCount < boardSizeRoot) {
+  // while there's less bombs placed than flags available, a random tile (using a random row or column in the matrix) will be set to -1 if it's an empty slot
+  while (bombCount < flags) {
+    //This is used to continue this while loop
     bool conLoop = false;
     randomRow = rand() % boardSizeRoot;
     randomColumn = rand() % boardSizeRoot;
+    //If the input of i and j wasn't -1 we will ignore placing mines around board[i][j]
     if (i != -1 && j != -1) {
       for (int a = (i == 0 ? 0 : i-1); a < (i+1 == boardSizeRoot ? i+1 : i+2); a++) {
         for (int b = (j == 0 ? 0 : j-1); b < (j+1 == boardSizeRoot ? j+1 : j+2); b++) {
@@ -252,10 +285,12 @@ int checkAround(int i, int j) {
 void floodFill(int i, int j) {
   for (int a = (i == 0 ? 0 : i-1); a < (i+1 == boardSizeRoot ? i+1 : i+2); a++) {
     for (int b = (j == 0 ? 0 : j-1); b < (j+1 == boardSizeRoot ? j+1 : j+2); b++) {
-      if (board[a][b].typeOf == 0 && board[a][b].visibility != 1) {
+      if (board[a][b].typeOf == 0 && board[a][b].visibility == 0) {
         board[a][b].visibility = 1;
         floodFill(a, b);
       }
+      if (board[a][b].visibility == 2) continue;
+      board[a][b].visibility = 1;
       GtkStyleContext *context = gtk_widget_get_style_context(board[a][b].btn);
       
       switch(board[a][b].typeOf) {

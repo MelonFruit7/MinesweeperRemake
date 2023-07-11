@@ -6,7 +6,23 @@ A minesweeper remake made using C and GTK+ (This project is currently Incomplete
 Later executables will be added but as for now,
 you can use it if you copy the necessary files and compile with the MakeFile.
 
-There will be a windows version and a linux version added, however the codebase consists of the linux code as of now.
+For mac and linux only:
+ - git clone https://github.com/MelonFruit7/MinesweeperRemake.git
+ - sudo apt install libgtk-3-dev
+ - cd MinesweeperRemake/MineSweeper
+
+  If you are on linux
+    - sudo apt install libgtk-3-dev
+  If you are on mac
+    - brew install gtk+3
+
+  - make
+  - ./start
+
+
+After this you are all good 
+
+There will be a windows version added, however the codebase consists of the linux code as of now.
 ```
 
 ## Preview

@@ -7,7 +7,6 @@ Use these commands in your terminal.
 
 For mac and linux only:
  - git clone https://github.com/MelonFruit7/MinesweeperRemake.git
- - sudo apt install libgtk-3-dev
  - cd MinesweeperRemake/MineSweeper
 
   If you are on linux

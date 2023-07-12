@@ -4,8 +4,28 @@ window {
   background-position: center;
   background-size: cover;
 }
-.navBar {}
-.navFlagsLeft {font-size: 40px; font-family: sans-serif; color: black;}
+
+
+.borderPane {border: 7px groove gray;}
+.playGrid {border: 7px inset gray;}
+.navBox {border: 7px inset gray; background-color: #c0c0c0; padding: 10px 0;}
+.navFlagsLeft, .navTimer {font-size: 40px; font-family: sans-serif; color: black; min-width: 150px;}
+
+.navSmileReset {
+  font-size: 30px;
+  min-height: 50px;
+  min-width: 50px;
+
+  border: 7px outset gray;
+  padding: 0;
+  margin: 0;
+  transition: 0;
+}
+.navSmileReset:active {border: 7px inset gray;}
+.navSmileResetWin {}
+.navSmileResetLose {background-image: url("images/loser.png");}
+.navSmileResetPlaying {background-image: url("images/smiley.png");}
+
 
 .btnStyle {
   background-repeat: no-repeat;
@@ -14,7 +34,8 @@ window {
 
   min-width: 50px;
   min-height: 50px;
-  
+ 
+  box-shadow: none;
   padding: 0;
   border-radius: 0;
   border: 2px solid black;

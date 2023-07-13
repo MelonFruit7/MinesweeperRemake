@@ -15,23 +15,46 @@ typedef struct slot {
 } slot;
 #define boardSizeRoot 10
 slot board[boardSizeRoot][boardSizeRoot];
+//Used to store indexes that we will free at the end of the program
+int* indexFree[boardSizeRoot][boardSizeRoot];
 
 //Amount of flags we can use
-int flags = boardSizeRoot;
+int flags = (boardSizeRoot-10)+(boardSizeRoot*boardSizeRoot/10);
+//Counter for to check
+int clicksTillWin = boardSizeRoot*boardSizeRoot - ((boardSizeRoot-10)+(boardSizeRoot*boardSizeRoot/10));
 //Label for amount of flags left
 GtkWidget *flagsLeft;
+//Smile Reset Button
 GtkWidget *smileReset;
-//Used to store strings
+//Timer Label
+GtkWidget *timer;
+//We can use this to stop the timer
+unsigned int timerId;
+
+//Used to store strings (actually just the flag string lol)
 char *buffer;
+//Used to store timerText
+char *timerText;
 
 //Used to set CSS to a cetrain item
 void defineCSS(GtkWidget *item, GtkCssProvider *cssProvider, char *className);
+//Used when user clicks on a slot
 void buttonClicked(GtkWidget *widget,GdkEventButton *event, gpointer data);
+//Used to remove a css class and replace it with another
 void changeStyleContext(GtkStyleContext *context, char *remove, char *add);
+//Used to set the board
 void setBoard(int i, int j);
+//Used to check around an element in a matrix without going out of bounds (returns amount of mines around the element)
 int checkAround(int i, int j);
+//Used to make everything around a clicked zero visible 
 void floodFill(int i, int j);
+//Called when user clicks on a mine
 void gameLost();
+//Called when user wins
+void gameWon();
+//Updates timer label
+int updateTimerLabel();
+//Restarts Minesweeper
 void restartApp() { system("killall start; ./start"); }
 
 
@@ -61,7 +84,7 @@ static void activate(GtkApplication *app, gpointer user_data) {
   
   //Nav Elements
   
-  //The buffer is sized by the length of the number added by 3 for the flag, space, and null terminator (DO NOT FREE, it's used in other segments of the code)
+  //The buffer is sized by the length of the number added by 3 for the flag, space, and null terminator (Do not free until application ends)
   //This is the flag counter
   buffer = calloc(((int)log10((double)flags)+1)+3, sizeof(char));
   sprintf(buffer, "🚩 %d", flags);
@@ -75,7 +98,8 @@ static void activate(GtkApplication *app, gpointer user_data) {
   gtk_box_pack_start(GTK_BOX(navBox), smileReset, TRUE, FALSE, 0);
   
   //Timer
-  GtkWidget *timer = gtk_label_new("00:00");
+  timer = gtk_label_new("00:00");
+  timerText = strdup(gtk_label_get_text(GTK_LABEL(timer)));
   gtk_box_pack_end(GTK_BOX(navBox), timer, FALSE, FALSE, 0); 
 
   //Define CSS for Nav bar elements
@@ -103,10 +127,12 @@ static void activate(GtkApplication *app, gpointer user_data) {
       //Attach button to grid (j represents left, i represents top)
       gtk_grid_attach(GTK_GRID(grid), board[i][j].btn, j, i, 1, 1);
       
-      //Passed into the click event so they know what button it is (DO NOT FREE)
-      int *index = calloc(2, sizeof(int));
+      //Passed into the click event so they know what button it is (Do not free until application ends)
+      int *index = (int *)malloc(2 * sizeof(int));
       index[0] = i;
       index[1] = j;
+      indexFree[i][j] = index;
+      
       //Listen to a right click or left click on a slot
       g_signal_connect(board[i][j].btn, "button-press-event", G_CALLBACK(buttonClicked), index);
 
@@ -132,7 +158,7 @@ static void activate(GtkApplication *app, gpointer user_data) {
   //Show Window
   gtk_widget_show_all(window);
   
-  //Free Resources when no longer needed
+  //unref Resources that are no longer needed
   g_object_unref(cssProvider);
 } 
 
@@ -140,10 +166,14 @@ int main(int argc, char *argv[])
 {
     GtkApplication *app = gtk_application_new("in.minesweeper", G_APPLICATION_FLAGS_NONE);
     g_signal_connect(app, "activate", G_CALLBACK(activate), NULL);
-
     int ret = g_application_run(G_APPLICATION(app), argc, argv);
 
-    g_object_ref(app);
+    //Free Resources after application ends
+    g_object_unref(app);
+    free(buffer);
+    free(timerText);
+    for (int i = 0; i < boardSizeRoot; i++) for (int j = 0; j < boardSizeRoot; j++) free(indexFree[i][j]);
+    
     return ret;
 }
 
@@ -158,26 +188,37 @@ void defineCSS(GtkWidget *item, GtkCssProvider *cssProvider, char *className) {
   gtk_style_context_add_class(styleContext, className);
 }
 
+
 bool gameStart = true;
 void buttonClicked(GtkWidget *widget, GdkEventButton *event ,gpointer data) {
-  //Data should not be freed because same button can be clicked multiple times
+  //Data should not be freed until application ends because the same button can be clicked multiple times
   int *index = (int *)data;
 
   if (gameStart && event->button == GDK_BUTTON_SECONDARY) return;
   if (gameStart) {
     setBoard(index[0], index[1]);
+    timerId = g_timeout_add_seconds(1, updateTimerLabel, NULL);
     gameStart = !gameStart;
   }
   
   GtkStyleContext *context = gtk_widget_get_style_context(widget);
   char visible = board[index[0]][index[1]].visibility;
   if (visible == 0 && event->button == GDK_BUTTON_PRIMARY) {
+    //Clicks Till Win lowered
+    clicksTillWin--;
+    
     switch(board[index[0]][index[1]].typeOf) {
       case -1:
+      	//prevent a bug
+        clicksTillWin++;
+        
       	gameLost();
         changeStyleContext(gtk_widget_get_style_context(smileReset), "navSmileResetPlaying", "navSmileResetLose");
       break;
       case 0:
+        //prevent a bug
+        clicksTillWin++;
+        
     	  changeStyleContext(context, "btnStyle1", "btnVisible1");
     	  changeStyleContext(context, "btnStyle2", "btnVisible2");
     	  floodFill(index[0], index[1]);
@@ -216,6 +257,9 @@ void buttonClicked(GtkWidget *widget, GdkEventButton *event ,gpointer data) {
       break;
     }
     board[index[0]][index[1]].visibility = 1;
+    //Win the game
+    if (clicksTillWin == 0) gameWon(); 
+    
   } else if (visible == 0 && event->button == GDK_BUTTON_SECONDARY) {
     if (flags > 0) {
       changeStyleContext(context, "btnStyle1", "btnStyleFlag1");
@@ -230,7 +274,7 @@ void buttonClicked(GtkWidget *widget, GdkEventButton *event ,gpointer data) {
     board[index[0]][index[1]].visibility = 0;
     sprintf(buffer, "🚩 %d", ++flags);
     gtk_label_set_text(GTK_LABEL(flagsLeft), buffer); 
-  } 
+  }
 } 
 
 //Shortcut for replacing a class with another
@@ -306,10 +350,14 @@ int checkAround(int i, int j) {
 void floodFill(int i, int j) {
   for (int a = (i == 0 ? 0 : i-1); a < (i+1 == boardSizeRoot ? i+1 : i+2); a++) {
     for (int b = (j == 0 ? 0 : j-1); b < (j+1 == boardSizeRoot ? j+1 : j+2); b++) {
+      //Lower clicks till win
+      if (board[a][b].visibility == 0) clicksTillWin--;
+      
       if (board[a][b].typeOf == 0 && board[a][b].visibility == 0) {
         board[a][b].visibility = 1;
         floodFill(a, b);
       }
+      //Ignore visible and flagged squares
       if (board[a][b].visibility == 2) continue;
       board[a][b].visibility = 1;
       GtkStyleContext *context = gtk_widget_get_style_context(board[a][b].btn);
@@ -357,6 +405,7 @@ void floodFill(int i, int j) {
   }
 }
 void gameLost() {
+  g_source_remove(timerId);
   for (int i = 0; i < boardSizeRoot; i++) {
     for (int j = 0; j < boardSizeRoot; j++) {
       board[i][j].visibility = 1;
@@ -367,4 +416,24 @@ void gameLost() {
       } 
     }
   }
+}
+void gameWon() {
+  g_source_remove(timerId);
+  changeStyleContext(gtk_widget_get_style_context(smileReset), "navSmileResetPlaying", "navSmileResetWin");
+  for (int i = 0; i < boardSizeRoot; i++) for (int j = 0; j < boardSizeRoot; j++) board[i][j].visibility = 1;
+    
+  
+}
+int updateTimerLabel(gpointer data) {
+   for (int i = strlen(timerText)-1; i > 0; i--) {
+     if (i == 2) continue;
+     if (timerText[i] != (i != 3 ? '9' : '5')) {
+     	timerText[i]++;
+     	break;
+     } else {
+     	timerText[i] = '0';
+     }
+   }
+   gtk_label_set_text(GTK_LABEL(timer), timerText);
+   return G_SOURCE_CONTINUE;
 }

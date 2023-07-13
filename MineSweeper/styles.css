@@ -15,14 +15,15 @@ window {
   font-size: 30px;
   min-height: 50px;
   min-width: 50px;
-
+  
+  box-shadow: none;
   border: 7px outset gray;
   padding: 0;
   margin: 0;
   transition: 0;
 }
 .navSmileReset:active {border: 7px inset gray;}
-.navSmileResetWin {}
+.navSmileResetWin {background-image: url("images/cool.png");}
 .navSmileResetLose {background-image: url("images/loser.png");}
 .navSmileResetPlaying {background-image: url("images/smiley.png");}
 

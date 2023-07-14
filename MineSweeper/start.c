@@ -164,7 +164,7 @@ static void activate(GtkApplication *app, gpointer user_data) {
 
 int main(int argc, char *argv[])
 {
-    GtkApplication *app = gtk_application_new("in.minesweeper", G_APPLICATION_FLAGS_NONE);
+    GtkApplication *app = gtk_application_new("in.minesweeper", G_APPLICATION_NON_UNIQUE);
     g_signal_connect(app, "activate", G_CALLBACK(activate), NULL);
     int ret = g_application_run(G_APPLICATION(app), argc, argv);
 
@@ -425,7 +425,7 @@ void gameWon() {
   
 }
 int updateTimerLabel(gpointer data) {
-   for (int i = strlen(timerText)-1; i > 0; i--) {
+   for (int i = strlen(timerText)-1; i >= 0; i--) {
      if (i == 2) continue;
      if (timerText[i] != (i != 3 ? '9' : '5')) {
      	timerText[i]++;

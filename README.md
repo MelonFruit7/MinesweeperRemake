@@ -12,7 +12,9 @@ For mac and linux only:
   If you are on linux
     - sudo apt install libgtk-3-dev
   If you are on mac
+    - /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     - brew install gtk+3
+    - brew install pkg-config
 
   - make
   - ./start

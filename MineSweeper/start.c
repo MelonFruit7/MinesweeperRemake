@@ -6,6 +6,8 @@
 #include <time.h>
 #include <stdbool.h>
 
+#include <unistd.h>
+
 
 //Struct that represents each slot on the minesweeper board
 typedef struct slot {
@@ -13,15 +15,19 @@ typedef struct slot {
   char typeOf;
   GtkWidget *btn;  
 } slot;
-#define boardSizeRoot 10
-slot board[boardSizeRoot][boardSizeRoot];
+int boardSizeRoot;
+slot **board;
 //Used to store indexes that we will free at the end of the program
-int* indexFree[boardSizeRoot][boardSizeRoot];
+int* **indexFree;
+
+
+//Styles for image nums 1-8, this is used for better accessibility
+char numStyles[][20] = {"btnStyleOne", "btnStyleTwo", "btnStyleThree", "btnStyleFour", "btnStyleFive", "btnStyleSix", "btnStyleSeven", "btnStyleEight"};
 
 //Amount of flags we can use
-int flags = (boardSizeRoot-10)+(boardSizeRoot*boardSizeRoot/10);
+int flags;
 //Counter for to check
-int clicksTillWin = boardSizeRoot*boardSizeRoot - ((boardSizeRoot-10)+(boardSizeRoot*boardSizeRoot/10));
+int clicksTillWin;
 //Label for amount of flags left
 GtkWidget *flagsLeft;
 //Smile Reset Button
@@ -55,10 +61,33 @@ void gameWon();
 //Updates timer label
 int updateTimerLabel();
 //Restarts Minesweeper
-void restartApp() { system("killall start; ./start"); }
+void restartApp() {char *args[] = {"./start", NULL}; execv(args[0], args);}
 
 
 static void activate(GtkApplication *app, gpointer user_data) {
+   
+  FILE *fp = fopen("dif.txt", "r");
+  if (fp != NULL) {
+    fscanf(fp, "%d", &boardSizeRoot);
+    fclose(fp);
+  } else {
+    boardSizeRoot = 10;
+  }
+  //Set all needed global variables
+ 
+  board = (slot**)malloc(boardSizeRoot*sizeof(slot*));
+  for (int i = 0; i < boardSizeRoot; i++) board[i] = (slot*)malloc(boardSizeRoot*sizeof(slot));
+  
+  indexFree = (int***)malloc(boardSizeRoot*sizeof(int**));
+  for (int i = 0; i < boardSizeRoot; i++) {
+    indexFree[i] = (int**)malloc(boardSizeRoot*sizeof(int*));
+    for (int j = 0; j < boardSizeRoot; j++) {
+      indexFree[i][j] = (int*)malloc(sizeof(int*));
+    }
+  }
+  flags = (boardSizeRoot-10)+(boardSizeRoot*boardSizeRoot/10);
+  clicksTillWin = boardSizeRoot*boardSizeRoot - flags;		
+		
   //Create Window
   GtkWidget *window = gtk_application_window_new(app);
   //Center the window
@@ -107,14 +136,23 @@ static void activate(GtkApplication *app, gpointer user_data) {
   defineCSS(flagsLeft, cssProvider, "navFlagsLeft");
   defineCSS(smileReset, cssProvider, "navSmileReset");
   defineCSS(timer, cssProvider, "navTimer");
+  
+  //Scroll for the grid
+  GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL);
+  //Size of a slot is 50px, each slot has 2px borders on each side and then we have the grid which has 7px borders on each side
+  int sSize = boardSizeRoot*54+14;
+
+  gtk_widget_set_size_request(scroll, (sSize>709?709:sSize), (sSize>709?709:sSize)); 
+  gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+  gtk_box_pack_end(GTK_BOX(vbox), scroll, TRUE, TRUE, 0);
 
   //Grid
   GtkWidget *grid = gtk_grid_new();
-  gtk_box_pack_end(GTK_BOX(vbox), grid, TRUE, TRUE, 0); 
+  gtk_container_add(GTK_CONTAINER(scroll), grid);
   defineCSS(grid, cssProvider, "playGrid");
 
   //Create Buttons
-  int counter = 0, prev = 1;
+  bool counter = 0, prev = 1;
   for (int i = 0; i < boardSizeRoot; i++) {
     //Make sure that the counter alternates for rows
     counter = !prev;
@@ -124,10 +162,12 @@ static void activate(GtkApplication *app, gpointer user_data) {
       board[i][j].visibility = 0;
       board[i][j].typeOf = 0;
       board[i][j].btn = gtk_button_new_with_label("");
+      
       //Attach button to grid (j represents left, i represents top)
       gtk_grid_attach(GTK_GRID(grid), board[i][j].btn, j, i, 1, 1);
       
       //Passed into the click event so they know what button it is (Do not free until application ends)
+      
       int *index = (int *)malloc(2 * sizeof(int));
       index[0] = i;
       index[1] = j;
@@ -145,7 +185,6 @@ static void activate(GtkApplication *app, gpointer user_data) {
       counter = !counter;
     }
   }
-  
 
   //Set Default Size of GUI
   gtk_window_set_default_size(GTK_WINDOW(window), 1000, 800);
@@ -153,17 +192,20 @@ static void activate(GtkApplication *app, gpointer user_data) {
   gtk_container_set_border_width(GTK_CONTAINER(window), 10);
   //Set Title of GUI
   gtk_window_set_title(GTK_WINDOW(window), "Minesweeper");
-
+  
 
   //Show Window
   gtk_widget_show_all(window);
   
   //unref Resources that are no longer needed
   g_object_unref(cssProvider);
+  
+  
 } 
 
 int main(int argc, char *argv[])
 {
+    
     GtkApplication *app = gtk_application_new("in.minesweeper", G_APPLICATION_NON_UNIQUE);
     g_signal_connect(app, "activate", G_CALLBACK(activate), NULL);
     int ret = g_application_run(G_APPLICATION(app), argc, argv);
@@ -172,7 +214,13 @@ int main(int argc, char *argv[])
     g_object_unref(app);
     free(buffer);
     free(timerText);
-    for (int i = 0; i < boardSizeRoot; i++) for (int j = 0; j < boardSizeRoot; j++) free(indexFree[i][j]);
+    for (int i = 0; i < boardSizeRoot; i++) {
+      for (int j = 0; j < boardSizeRoot; j++) free(indexFree[i][j]);
+      free(indexFree[i]);
+      free(board[i]);
+    }
+    free(indexFree);
+    free(board);
     
     return ret;
 }
@@ -203,7 +251,11 @@ void buttonClicked(GtkWidget *widget, GdkEventButton *event ,gpointer data) {
   
   GtkStyleContext *context = gtk_widget_get_style_context(widget);
   char visible = board[index[0]][index[1]].visibility;
-  if (visible == 0 && event->button == GDK_BUTTON_PRIMARY) {
+  if (visible == 0 && event->button == GDK_BUTTON_PRIMARY) { 
+    //Make the slot visible
+    changeStyleContext(context, "btnStyle1", "btnVisible1");
+    changeStyleContext(context, "btnStyle2", "btnVisible2");
+    
     //Clicks Till Win lowered
     clicksTillWin--;
     
@@ -219,42 +271,11 @@ void buttonClicked(GtkWidget *widget, GdkEventButton *event ,gpointer data) {
         //prevent a bug
         clicksTillWin++;
         
-    	  changeStyleContext(context, "btnStyle1", "btnVisible1");
-    	  changeStyleContext(context, "btnStyle2", "btnVisible2");
     	  floodFill(index[0], index[1]);
       break;
-      case 1:
-        changeStyleContext(context, "btnStyle1", "btnStyleOne1");
-    	  changeStyleContext(context, "btnStyle2", "btnStyleOne2");
-      break;
-      case 2:
-        changeStyleContext(context, "btnStyle1", "btnStyleTwo1");
-    	  changeStyleContext(context, "btnStyle2", "btnStyleTwo2");
-      break;
-      case 3:
-        changeStyleContext(context, "btnStyle1", "btnStyleThree1");
-    	  changeStyleContext(context, "btnStyle2", "btnStyleThree2");
-      break;
-      case 4:
-        changeStyleContext(context, "btnStyle1", "btnStyleFour1");
-    	  changeStyleContext(context, "btnStyle2", "btnStyleFour2");
-      break;
-      case 5:
-        changeStyleContext(context, "btnStyle1", "btnStyleFive1");
-    	  changeStyleContext(context, "btnStyle2", "btnStyleFive2");
-      break;
-      case 6:
-        changeStyleContext(context, "btnStyle1", "btnStyleSix1");
-    	  changeStyleContext(context, "btnStyle2", "btnStyleSix2");
-      break;
-      case 7:
-        changeStyleContext(context, "btnStyle1", "btnStyleSeven1");
-    	  changeStyleContext(context, "btnStyle2", "btnStyleSeven2");
-      break;
-      case 8:
-        changeStyleContext(context, "btnStyle1", "btnStyleEight1");
-    	  changeStyleContext(context, "btnStyle2", "btnStyleEight2");
-      break;
+      default:
+        //numStyles is used here to access the needed num image
+        gtk_style_context_add_class(context, numStyles[board[index[0]][index[1]].typeOf - 1]);
     }
     board[index[0]][index[1]].visibility = 1;
     //Win the game
@@ -262,15 +283,17 @@ void buttonClicked(GtkWidget *widget, GdkEventButton *event ,gpointer data) {
     
   } else if (visible == 0 && event->button == GDK_BUTTON_SECONDARY) {
     if (flags > 0) {
-      changeStyleContext(context, "btnStyle1", "btnStyleFlag1");
-      changeStyleContext(context, "btnStyle2", "btnStyleFlag2");
+      //Add a class
+      gtk_style_context_add_class(context, "btnStyleFlag");
+
       board[index[0]][index[1]].visibility = 2;
       sprintf(buffer, "🚩 %d", --flags);
       gtk_label_set_text(GTK_LABEL(flagsLeft), buffer);
     }
   } else if (visible == 2 && event->button == GDK_BUTTON_SECONDARY) {
-    changeStyleContext(context, "btnStyleFlag1", "btnStyle1");
-    changeStyleContext(context, "btnStyleFlag2", "btnStyle2");
+    //Remove a class
+    gtk_style_context_remove_class(context, "btnStyleFlag");
+
     board[index[0]][index[1]].visibility = 0;
     sprintf(buffer, "🚩 %d", ++flags);
     gtk_label_set_text(GTK_LABEL(flagsLeft), buffer); 
@@ -362,45 +385,11 @@ void floodFill(int i, int j) {
       board[a][b].visibility = 1;
       GtkStyleContext *context = gtk_widget_get_style_context(board[a][b].btn);
       
-      switch(board[a][b].typeOf) {
-        //-1 is redundant since we don't want to make a mine visible lol
-        case 0:
-    	  changeStyleContext(context, "btnStyle1", "btnVisible1");
-    	  changeStyleContext(context, "btnStyle2", "btnVisible2");
-        break;
-        case 1:
-          changeStyleContext(context, "btnStyle1", "btnStyleOne1");
-    	  changeStyleContext(context, "btnStyle2", "btnStyleOne2");
-        break;
-        case 2:
-          changeStyleContext(context, "btnStyle1", "btnStyleTwo1");
-    	  changeStyleContext(context, "btnStyle2", "btnStyleTwo2");
-        break;
-        case 3:
-          changeStyleContext(context, "btnStyle1", "btnStyleThree1");
-    	  changeStyleContext(context, "btnStyle2", "btnStyleThree2");
-        break;
-        case 4:
-          changeStyleContext(context, "btnStyle1", "btnStyleFour1");
-    	  changeStyleContext(context, "btnStyle2", "btnStyleFour2");
-        break;
-        case 5:
-          changeStyleContext(context, "btnStyle1", "btnStyleFive1");
-    	  changeStyleContext(context, "btnStyle2", "btnStyleFive2");
-        break;
-        case 6:
-          changeStyleContext(context, "btnStyle1", "btnStyleSix1");
-    	  changeStyleContext(context, "btnStyle2", "btnStyleSix2");
-        break;
-        case 7:
-          changeStyleContext(context, "btnStyle1", "btnStyleSeven1");
-    	  changeStyleContext(context, "btnStyle2", "btnStyleSeven2");
-        break;
-        case 8:
-          changeStyleContext(context, "btnStyle1", "btnStyleEight1");
-    	  changeStyleContext(context, "btnStyle2", "btnStyleEight2");
-      	break;
-      }
+    	changeStyleContext(context, "btnStyle1", "btnVisible1");
+    	changeStyleContext(context, "btnStyle2", "btnVisible2");
+        
+      //We use numStyles here to access image nums
+      gtk_style_context_add_class(context, numStyles[board[a][b].typeOf - 1]);
     }
   }
 }
@@ -408,22 +397,24 @@ void gameLost() {
   g_source_remove(timerId);
   for (int i = 0; i < boardSizeRoot; i++) {
     for (int j = 0; j < boardSizeRoot; j++) {
-      board[i][j].visibility = 1;
-      if (board[i][j].typeOf == -1) {
+      if (board[i][j].typeOf == -1 && board[i][j].visibility != 2) {
         GtkStyleContext *context = gtk_widget_get_style_context(board[i][j].btn);
-        changeStyleContext(context, "btnStyle1", "btnStyleMine1");
-        changeStyleContext(context, "btnStyle2", "btnStyleMine2");
-      } 
+        changeStyleContext(context, "btnStyle1", "btnVisible1");
+        changeStyleContext(context, "btnStyle2", "btnVisible2");
+        gtk_style_context_add_class(context, "btnStyleMine");
+      }
+      board[i][j].visibility = 1;
     }
   }
 }
+
 void gameWon() {
   g_source_remove(timerId);
   changeStyleContext(gtk_widget_get_style_context(smileReset), "navSmileResetPlaying", "navSmileResetWin");
-  for (int i = 0; i < boardSizeRoot; i++) for (int j = 0; j < boardSizeRoot; j++) board[i][j].visibility = 1;
-    
-  
+  for (int i = 0; i < boardSizeRoot; i++) for (int j = 0; j < boardSizeRoot; j++) board[i][j].visibility = 1; 
 }
+
+
 int updateTimerLabel(gpointer data) {
    for (int i = strlen(timerText)-1; i >= 0; i--) {
      if (i == 2) continue;

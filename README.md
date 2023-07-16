@@ -21,8 +21,12 @@ For mac and linux only:
 
 
 After this you are all good 
+```
 
-There will be a windows version added, however the codebase consists of the linux code as of now.
+```
+For windows:
+- download and extract windows_minesweeper.zip
+- go to "MineSweeper (Windows)" ---> bin ---> game_minesweeper.exe
 ```
 
 ## Preview

@@ -125,7 +125,10 @@ void activate(GtkApplication *app, gpointer user_data) {
   gtk_widget_show_all(dialog);
   gtk_dialog_run(GTK_DIALOG(dialog));
   
-  if (!destroyedDialog) gtk_widget_destroy(dialog);
+  if (!destroyedDialog) {
+     gtk_widget_destroy(dialog);
+     exit(0);
+  }
   
    
   //START OF MINESWEEPER

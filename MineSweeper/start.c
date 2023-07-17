@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <time.h>
 #include <stdbool.h>
-
 #include <unistd.h>
 
 
@@ -15,7 +14,11 @@ typedef struct slot {
   char typeOf;
   GtkWidget *btn;  
 } slot;
-int boardSizeRoot;
+//Default board size
+int boardSizeRoot = 10;
+//Size of the slot rooted
+int sizeOfSlot = 54;
+
 slot **board;
 //Used to store indexes that we will free at the end of the program
 int* **indexFree;
@@ -34,8 +37,12 @@ GtkWidget *flagsLeft;
 GtkWidget *smileReset;
 //Timer Label
 GtkWidget *timer;
+//Scroll for the grid, we need it here so we can access it in the zoomScreen function
+GtkWidget *scroll;
 //We can use this to stop the timer
 unsigned int timerId;
+//Check if timerId has been stopped
+bool timerStopped = false;
 
 //Used to store strings (actually just the flag string lol)
 char *buffer;
@@ -60,21 +67,75 @@ void gameLost();
 void gameWon();
 //Updates timer label
 int updateTimerLabel();
+//Function to zoom in/out on the board
+void zoomScreen(GtkWidget *widget, GdkEventKey *event, gpointer data);
 //Restarts Minesweeper
 void restartApp() {char *args[] = {"./start", NULL}; execv(args[0], args);}
 
+//Needed here so we can close it lol
+GtkWidget *dialog;
+bool destroyedDialog = false;
+//Set difficulty 
+void setDif(GtkWidget *widget, gpointer data) {
+   boardSizeRoot = *((int *)data);
+   gtk_widget_destroy(GTK_WIDGET(dialog));
+   destroyedDialog = true;
+}
 
-static void activate(GtkApplication *app, gpointer user_data) {
+
+void activate(GtkApplication *app, gpointer user_data) {
+  //Add CSS file with cssprovider
+  GtkCssProvider *cssProvider = gtk_css_provider_new();
+  gtk_css_provider_load_from_path(cssProvider, "styles.css", NULL);  
+
+  //DIFFICULTY SET WINDOW
+  dialog = gtk_dialog_new();
+  gtk_window_set_title(GTK_WINDOW(dialog), "Set difficulty");
+  gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
+  gtk_widget_set_size_request(dialog, 500, 500);
+  //Center the dialog
+  gtk_widget_set_valign(gtk_dialog_get_content_area(GTK_DIALOG(dialog)), GTK_ALIGN_CENTER);
+  gtk_widget_set_halign(gtk_dialog_get_content_area(GTK_DIALOG(dialog)), GTK_ALIGN_CENTER);
+  gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER);
+  
+  GtkWidget *difGrid = gtk_grid_new();
+
+  //Make difficulty buttons
+  GtkWidget *ten = gtk_button_new_with_label("10x10");
+  gtk_grid_attach(GTK_GRID(difGrid), ten, 0, 0, 1, 1);
+  GtkWidget *eighteen = gtk_button_new_with_label("18x18");
+  gtk_grid_attach(GTK_GRID(difGrid), eighteen, 2, 0, 1, 1);
+  GtkWidget *twentyfive = gtk_button_new_with_label("25x25");
+  gtk_grid_attach(GTK_GRID(difGrid), twentyfive, 1, 1, 1, 1);
+  
+  //Define the css of the buttons
+  defineCSS(dialog, cssProvider, "difScreen");
+  defineCSS(ten, cssProvider, "difBtn");
+  defineCSS(eighteen, cssProvider, "difBtn");
+  defineCSS(twentyfive, cssProvider, "difBtn");
+  
+  //Set the signals
+  int difA = 10, difB = 18, difC = 25;
+  g_signal_connect(ten, "clicked", G_CALLBACK(setDif), &difA);
+  g_signal_connect(eighteen, "clicked", G_CALLBACK(setDif), &difB);
+  g_signal_connect(twentyfive, "clicked", G_CALLBACK(setDif), &difC);
+  
+  //Add the grid to the box that exists within the dialog  
+  gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), difGrid);
+  gtk_widget_show_all(dialog);
+  gtk_dialog_run(GTK_DIALOG(dialog));
+  
+  if (!destroyedDialog) gtk_widget_destroy(dialog);
+  
    
+  //START OF MINESWEEPER
   FILE *fp = fopen("dif.txt", "r");
   if (fp != NULL) {
     fscanf(fp, "%d", &boardSizeRoot);
     fclose(fp);
-  } else {
-    boardSizeRoot = 10;
   }
+  
   //Set all needed global variables
- 
   board = (slot**)malloc(boardSizeRoot*sizeof(slot*));
   for (int i = 0; i < boardSizeRoot; i++) board[i] = (slot*)malloc(boardSizeRoot*sizeof(slot));
   
@@ -86,16 +147,13 @@ static void activate(GtkApplication *app, gpointer user_data) {
     }
   }
   flags = (boardSizeRoot-10)+(boardSizeRoot*boardSizeRoot/10);
-  clicksTillWin = boardSizeRoot*boardSizeRoot - flags;		
+  clicksTillWin = boardSizeRoot*boardSizeRoot - flags;
+  	
 		
   //Create Window
   GtkWidget *window = gtk_application_window_new(app);
   //Center the window
   gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
-
-  //Add CSS file with cssprovider
-  GtkCssProvider *cssProvider = gtk_css_provider_new();
-  gtk_css_provider_load_from_path(cssProvider, "styles.css", NULL);  
 
   //Define the style you're using and add it to context (CSS)
   defineCSS(window, cssProvider, "windowStyle"); 
@@ -138,9 +196,9 @@ static void activate(GtkApplication *app, gpointer user_data) {
   defineCSS(timer, cssProvider, "navTimer");
   
   //Scroll for the grid
-  GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL);
-  //Size of a slot is 50px, each slot has 2px borders on each side and then we have the grid which has 7px borders on each side
-  int sSize = boardSizeRoot*54+14;
+  scroll = gtk_scrolled_window_new(NULL, NULL);
+  //Size of a slot is 50px including borders, we have the grid which has 7px borders on each side
+  int sSize = boardSizeRoot*sizeOfSlot+14;
 
   gtk_widget_set_size_request(scroll, (sSize>709?709:sSize), (sSize>709?709:sSize)); 
   gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
@@ -162,7 +220,9 @@ static void activate(GtkApplication *app, gpointer user_data) {
       board[i][j].visibility = 0;
       board[i][j].typeOf = 0;
       board[i][j].btn = gtk_button_new_with_label("");
-      
+
+      //Set size of slot
+      gtk_widget_set_size_request(board[i][j].btn, sizeOfSlot, sizeOfSlot);
       //Attach button to grid (j represents left, i represents top)
       gtk_grid_attach(GTK_GRID(grid), board[i][j].btn, j, i, 1, 1);
       
@@ -185,13 +245,16 @@ static void activate(GtkApplication *app, gpointer user_data) {
       counter = !counter;
     }
   }
-
+  
   //Set Default Size of GUI
   gtk_window_set_default_size(GTK_WINDOW(window), 1000, 800);
   //Sets Border of GUI
   gtk_container_set_border_width(GTK_CONTAINER(window), 10);
   //Set Title of GUI
   gtk_window_set_title(GTK_WINDOW(window), "Minesweeper");
+  
+  //Zoom in/out listener
+  g_signal_connect(window, "key-press-event", G_CALLBACK(zoomScreen), NULL); 
   
 
   //Show Window
@@ -205,11 +268,10 @@ static void activate(GtkApplication *app, gpointer user_data) {
 
 int main(int argc, char *argv[])
 {
-    
     GtkApplication *app = gtk_application_new("in.minesweeper", G_APPLICATION_NON_UNIQUE);
     g_signal_connect(app, "activate", G_CALLBACK(activate), NULL);
     int ret = g_application_run(G_APPLICATION(app), argc, argv);
-
+   
     //Free Resources after application ends
     g_object_unref(app);
     free(buffer);
@@ -394,7 +456,8 @@ void floodFill(int i, int j) {
   }
 }
 void gameLost() {
-  g_source_remove(timerId);
+  if (!timerStopped) g_source_remove(timerId);
+  timerStopped = true;
   for (int i = 0; i < boardSizeRoot; i++) {
     for (int j = 0; j < boardSizeRoot; j++) {
       if (board[i][j].typeOf == -1 && board[i][j].visibility != 2) {
@@ -409,22 +472,61 @@ void gameLost() {
 }
 
 void gameWon() {
-  g_source_remove(timerId);
+  if (!timerStopped) g_source_remove(timerId);
+  timerStopped = true;
   changeStyleContext(gtk_widget_get_style_context(smileReset), "navSmileResetPlaying", "navSmileResetWin");
   for (int i = 0; i < boardSizeRoot; i++) for (int j = 0; j < boardSizeRoot; j++) board[i][j].visibility = 1; 
 }
 
 
 int updateTimerLabel(gpointer data) {
+   if (strcmp(timerText, "99:59") == 0) {
+     timerStopped = true;
+     return G_SOURCE_REMOVE;
+   }
+   //We basically overflow numbers, if a number overflows just add 1 to the number left of it.
    for (int i = strlen(timerText)-1; i >= 0; i--) {
+     //2 is when we reach the ":"
      if (i == 2) continue;
+     //When i is 3 we reached 00:-->0<--0 that zero and since we want accurate time, seconds should reset at 59
      if (timerText[i] != (i != 3 ? '9' : '5')) {
      	timerText[i]++;
      	break;
      } else {
-     	timerText[i] = '0';
+       timerText[i] = '0';
      }
    }
+   //Set the label
    gtk_label_set_text(GTK_LABEL(timer), timerText);
+   
+   //Continue calling this function
    return G_SOURCE_CONTINUE;
+}
+
+void zoomScreen(GtkWidget *widget, GdkEventKey *event, gpointer data) {
+    //Used to check if we have to change the board for this function call
+    bool changing = 0;
+    
+    //If we type the down key make each slot smaller
+    if (event->keyval == GDK_KEY_Down) {
+    	sizeOfSlot -= 10;
+    	changing = 1;
+    //If we type the up key make each slot bigger
+    } else if (event->keyval == GDK_KEY_Up) {
+        sizeOfSlot += 10;
+        changing = 1;
+    }
+    //24 because the min width in the css in 20 and the slots have 2px border on each side
+    if (sizeOfSlot < 24) sizeOfSlot = 24;
+    
+    //This is a manually set max :0
+    if (sizeOfSlot > 204) sizeOfSlot = 204;
+    if (!changing) return;
+    
+    //set size request for all slots
+    for (int i = 0; i < boardSizeRoot; i++) for (int j = 0; j < boardSizeRoot; j++) gtk_widget_set_size_request(board[i][j].btn, sizeOfSlot, sizeOfSlot);
+    
+    //Set the scroll screen to fit the adjusted board
+    int setScrollSize = sizeOfSlot*boardSizeRoot+14;
+    gtk_widget_set_size_request(scroll, (setScrollSize>709?709:setScrollSize),(setScrollSize>709?709:setScrollSize));
 }
